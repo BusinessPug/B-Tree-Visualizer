@@ -1,38 +1,314 @@
-.App {
-  text-align: center;
+/* Reset / base */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* Theme variables — flipped via `data-theme` on <html>. Accent hues are
+   intentionally identical across themes so structural-stage colouring
+   stays recognisable on toggle; only neutral surfaces shift. */
+:root,
+:root[data-theme="dark"] {
+  --bg:           #0b1220;
+  --panel:        #141d33;
+  --panel-alt:    #1b2540;
+  --border:       #2a3654;
+  --border-soft:  #1f2942;
+  --text:         #e6ecf7;
+  --text-dim:     #8893ad;
+  --text-faint:   #5b6788;
+  --shadow:       0 10px 30px rgba(0, 0, 0, 0.35);
+  --shadow-soft:  0 2px 8px rgba(0, 0, 0, 0.25);
+  --input-bg:     #0b1220;
+  --backdrop:     rgba(3, 7, 18, 0.6);
+  color-scheme:   dark;
 }
 
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
+:root[data-theme="light"] {
+  --bg:           #f4f6fb;
+  --panel:        #ffffff;
+  --panel-alt:    #eef2f8;
+  --border:       #dbe2ee;
+  --border-soft:  #e8edf5;
+  --text:         #0f172a;
+  --text-dim:     #5b6580;
+  --text-faint:   #94a3b8;
+  --shadow:       0 10px 30px rgba(15, 23, 42, 0.08);
+  --shadow-soft:  0 2px 8px rgba(15, 23, 42, 0.06);
+  --input-bg:     #ffffff;
+  --backdrop:     rgba(15, 23, 42, 0.35);
+  color-scheme:   light;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
+/* Shared accent palette — duplicated in src/Medium/theme.js for SVG use. */
+:root {
+  --c-insert:  #14b8a6;
+  --c-delete:  #f43f5e;
+  --c-search:  #a78bfa;
+  --c-info:    #0ea5e9;
+  --c-random:  #8b5cf6;
+  --c-clear:   #64748b;
+  --c-log:     #22d3ee;
 }
 
-.App-header {
-  background-color: #282c34;
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
   min-height: 100vh;
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+/* Root layout — fixed viewport height so the canvas area has a definite
+   size to flex into (needed for fit-to-canvas mode where the SVG sizes
+   itself against the wrap's measured rect). */
+.btv-root {
   display: flex;
   flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Header */
+.btv-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 28px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow-soft);
+}
+.btv-title {
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+.btv-subtitle {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+.btv-header-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Icon toggle buttons in the header (orientation, theme) */
+.btv-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel-alt);
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s, transform 0.08s;
+}
+.btv-toggle:hover  { border-color: var(--c-info); }
+.btv-toggle:active { transform: scale(0.97); }
+.btv-toggle--on {
+  border-color: var(--c-info);
+  background: color-mix(in srgb, var(--c-info) 18%, transparent);
+  color: var(--c-info);
+}
+.btv-toggle-icon   { font-size: 0.95rem; line-height: 1; }
+
+/* Controls */
+.btv-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 16px 28px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+.btv-input {
+  padding: 9px 13px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--input-bg);
+  color: var(--text);
+  font-size: 0.92rem;
+  width: 160px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.btv-input::placeholder { color: var(--text-faint); }
+.btv-input:focus {
+  border-color: var(--c-info);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-info) 22%, transparent);
+}
+
+/* hide number arrows */
+.btv-input::-webkit-inner-spin-button,
+.btv-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.btv-input[type=number] { -moz-appearance: textfield; }
+
+/* Buttons — flat, slightly translucent accent fills, accent border. */
+.btv-btn {
+  --btn: var(--c-info);
+  padding: 9px 18px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--btn) 55%, transparent);
+  background: color-mix(in srgb, var(--btn) 18%, transparent);
+  color: var(--btn);
+  cursor: pointer;
+  font-size: 0.86rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  transition: background-color 0.15s, border-color 0.15s, transform 0.08s, color 0.15s;
+}
+.btv-btn:hover  {
+  background: color-mix(in srgb, var(--btn) 28%, transparent);
+  border-color: var(--btn);
+}
+.btv-btn:active { transform: scale(0.97); }
+.btv-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btv-btn-insert  { --btn: var(--c-insert); }
+.btv-btn-delete  { --btn: var(--c-delete); }
+.btv-btn-search  { --btn: var(--c-search); }
+.btv-btn-random  { --btn: var(--c-random); }
+.btv-btn-clear   { --btn: var(--c-clear); }
+.btv-btn-log     { --btn: var(--c-log); }
+
+/* Status bar */
+.btv-status {
+  padding: 10px 28px;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  background: var(--bg);
+  border-bottom: 1px solid var(--border-soft);
+}
+
+/* Canvas area — flexes to fill remaining viewport height beneath the
+   header / controls / status. `min-height: 0` allows the flex child to
+   shrink below its content size, which is essential for fit-to-canvas. */
+.btv-canvas {
+  flex: 1;
+  padding: 16px 20px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.btv-canvas-wrap {
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+}
+.btv-empty {
+  display: flex;
   align-items: center;
   justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: white;
+  height: 220px;
+  color: var(--text-faint);
+  font-size: 0.95rem;
+  font-style: italic;
 }
 
-.App-link {
-  color: #61dafb;
+/* Off-canvas drawer */
+.btv-offcanvas-backdrop {
+  position: fixed;
+  inset: 0;
+  background: var(--backdrop);
+  backdrop-filter: blur(2px);
+  z-index: 40;
 }
+.btv-offcanvas {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 340px;
+  height: 100vh;
+  background: var(--panel);
+  border-left: 1px solid var(--border);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.28s ease;
+  box-shadow: var(--shadow);
+}
+.btv-offcanvas--open { transform: translateX(0); }
+.btv-offcanvas-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 700;
+  color: var(--text);
+}
+.btv-offcanvas-close {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background-color 0.15s, color 0.15s;
+}
+.btv-offcanvas-close:hover { background: var(--panel-alt); color: var(--text); }
+.btv-offcanvas-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+}
+.btv-offcanvas-footer {
+  padding: 16px 20px;
+  border-top: 1px solid var(--border);
+  background: var(--panel-alt);
+}
+.btv-log-empty { color: var(--text-faint); font-size: 0.85rem; font-style: italic; }
+.btv-log-list  { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.btv-log-item  {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.78rem;
+  padding: 8px 11px;
+  background: var(--panel-alt);
+  border-radius: 6px;
+  border-left: 3px solid var(--c-info);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  line-height: 1.4;
+  word-break: break-word;
+}
+.btv-log-kind {
+  align-self: flex-start;
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border: 1px solid;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--panel) 70%, transparent);
+}
+.btv-log-msg { color: var(--text); }
 
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+/* Legend */
+.btv-legend { display: flex; flex-direction: column; gap: 8px; }
+.btv-legend-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 0.76rem;
+  color: var(--text-dim);
+}
+.btv-legend-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
