@@ -21,3 +21,16 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Env
+.env
+
+# Local deploy script
+deploy.sh
+
+# Build output
+/build
+
+# Misc tarballs
+*.tgz
+*.gz

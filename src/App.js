@@ -1,5 +1,5 @@
 import './App.css';
-import MainComponent from './Medium/MainComponent';
+import MainComponent from './MainComponent';
 
 function App() {
   return <MainComponent />;

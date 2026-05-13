@@ -37,7 +37,7 @@
   color-scheme:   light;
 }
 
-/* Shared accent palette — duplicated in src/Medium/theme.js for SVG use. */
+/* Shared accent palette — duplicated in src/theme.js for SVG use. */
 :root {
   --c-insert:  #14b8a6;
   --c-delete:  #f43f5e;
@@ -144,6 +144,39 @@ body {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-info) 22%, transparent);
 }
 
+/* Data-type picker grouped with the key controls. The label keeps the
+   select visually anchored to its purpose without needing extra chrome. */
+.btv-datatype {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.btv-datatype-label { color: var(--text-dim); }
+.btv-select {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--input-bg);
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 500;
+  letter-spacing: normal;
+  text-transform: none;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.btv-select:focus {
+  border-color: var(--c-info);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-info) 22%, transparent);
+}
+.btv-select:disabled { opacity: 0.55; cursor: not-allowed; }
+
 /* hide number arrows */
 .btv-input::-webkit-inner-spin-button,
 .btv-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
@@ -180,6 +213,45 @@ body {
 .btv-btn-random  { --btn: var(--c-random); }
 .btv-btn-clear   { --btn: var(--c-clear); }
 .btv-btn-log     { --btn: var(--c-log); }
+.btv-btn-apply   { --btn: var(--c-insert); }
+
+/* Tree-order configuration bar */
+.btv-order-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 28px;
+  background: var(--panel-alt);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+.btv-order-label {
+  font-weight: 700;
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.72rem;
+}
+.btv-order-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-dim);
+  font-size: 0.78rem;
+}
+.btv-input-order {
+  width: 70px;
+  padding: 6px 9px;
+  font-size: 0.88rem;
+}
+.btv-order-hint {
+  margin-left: auto;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  font-style: italic;
+}
 
 /* Status bar */
 .btv-status {

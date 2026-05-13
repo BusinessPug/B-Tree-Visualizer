@@ -2,7 +2,14 @@ import React, { useMemo, useRef, useEffect, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion';
 import { chipColors, kindColor } from './theme';
 
-const KEY_W       = 44;
+const MIN_KEY_W   = 44;            // floor so single-digit keys still read well
+const KEY_FONT_PX = 14;
+// Monospace advance for the rendering font (JetBrains Mono / Fira Code at
+// KEY_FONT_PX). Slightly generous so wide glyphs (M, W) don't kiss the
+// vertical dividers. Combined with KEY_H_PAD this defines the minimum box
+// needed to display a value of a given length.
+const KEY_CHAR_W  = 8.6;
+const KEY_H_PAD   = 14;            // 7px breathing room on each side of the text
 const KEY_H       = 36;
 const NODE_PAD    = 8;
 const LEVEL_GAP   = 90;            // horizontal-orientation level pitch padding
@@ -14,6 +21,26 @@ const MARGIN      = 20;
 // in vertical mode) is not clipped behind the status / stage banner.
 const TOP_MARGIN  = 72;
 const LEFT_MARGIN = 96;             // used only in vertical orientation
+
+// Width allotted to a single key cell. Keys can be integers, floats,
+// strings or characters — their rendered text length varies, so a fixed
+// width like the original 44px caused 10-digit integers and longer
+// strings to overflow the box. We size to the rendered string and floor
+// at MIN_KEY_W for visual consistency.
+function keyWidth(k) {
+  const len = String(k).length;
+  return Math.max(MIN_KEY_W, len * KEY_CHAR_W + KEY_H_PAD);
+}
+
+// Per-key widths and the running offset where each key starts inside the
+// node (measured from the node's left border, before NODE_PAD). The total
+// inner content width is offsets[keys.length].
+function keyMetrics(keys) {
+  const widths = keys.map(keyWidth);
+  const offsets = [0];
+  for (let i = 0; i < widths.length; i++) offsets.push(offsets[i] + widths[i]);
+  return { widths, offsets, inner: offsets[widths.length] };
+}
 
 const STAGE_CAPTION = {
   'leaf-insert':  'Inserted into leaf',
@@ -52,14 +79,16 @@ const STAGE_CAPTION = {
 // the depth axis with a fixed per-level pitch (because node widths along
 // the depth axis vary and would otherwise overlap).
 
-function nodeWidth(keys) { return keys.length * KEY_W + NODE_PAD * 2; }
+function nodeWidth(metrics) { return metrics.inner + NODE_PAD * 2; }
 
 function computeLayout(snap, depth = 0) {
-  const w = nodeWidth(snap.keys);
+  const metrics = keyMetrics(snap.keys);
+  const w = nodeWidth(metrics);
   const y = depth * (KEY_H + NODE_PAD * 2 + LEVEL_GAP);
   const node = {
     id: snap.id, keys: snap.keys, isLeaf: snap.isLeaf,
     depth, x: 0, y, width: w, height: KEY_H + NODE_PAD * 2, children: [],
+    keyWidths: metrics.widths, keyOffsets: metrics.offsets,
   };
   if (snap.isLeaf || !snap.children.length) {
     return { node, leftContour: [0], rightContour: [w] };
@@ -141,10 +170,14 @@ function flatten(root, orientation) {
           cx: c.x,           cy: c.y + c.height / 2,
         });
       } else {
+        // Edges fan out along the parent's bottom edge: leftmost child
+        // anchors at the node's left edge, rightmost at its right edge,
+        // and middle children at the boundary between adjacent key cells
+        // (variable-width, so we use the precomputed cumulative offsets).
         let pxLocal;
         if (idx === 0)         pxLocal = 0;
         else if (idx === last) pxLocal = n.width;
-        else                   pxLocal = NODE_PAD + idx * KEY_W;
+        else                   pxLocal = NODE_PAD + n.keyOffsets[idx];
         edges.push({
           parentId: n.id, childId: c.id,
           px: n.x + pxLocal, py: n.y + n.height,
@@ -190,7 +223,7 @@ function AnimEdge({ edge, lit, theme }) {
 }
 
 function AnimNode({ node, activeNodeId, foundNodeId, deletedKeyIndex, focusColor, isNew, medianKeyIndex, theme }) {
-  const { x, y, keys, width, height, id } = node;
+  const { x, y, keys, width, height, id, keyWidths, keyOffsets } = node;
   const isActive = activeNodeId === id;
   const isFound  = foundNodeId  === id;
   const isFocus  = !!focusColor;
@@ -217,7 +250,8 @@ function AnimNode({ node, activeNodeId, foundNodeId, deletedKeyIndex, focusColor
         transition={{ duration: 0.25 }}
       />
       {keys.map((k, i) => {
-        const kx = NODE_PAD + i * KEY_W;
+        const kx = NODE_PAD + keyOffsets[i];
+        const kw = keyWidths[i];
         const isDel    = isFound && deletedKeyIndex === i;
         const isMedian = medianKeyIndex === i;
         return (
@@ -225,20 +259,20 @@ function AnimNode({ node, activeNodeId, foundNodeId, deletedKeyIndex, focusColor
             {i > 0 && <line x1={kx} y1={4} x2={kx} y2={height - 4} stroke={theme.keyDivider} strokeWidth={1} />}
             {isMedian && (
               <motion.rect
-                x={kx} y={2} width={KEY_W} height={height - 4} rx={3}
+                x={kx} y={2} width={kw} height={height - 4} rx={3}
                 fill={theme.medianKeyBg}
                 initial={{ opacity: 0.15 }}
                 animate={{ opacity: [0.2, 0.6, 0.2] }}
                 transition={{ duration: 1.1, repeat: Infinity }}
               />
             )}
-            {isDel && <rect x={kx} y={2} width={KEY_W} height={height - 4} rx={3} fill={theme.deleteKeyBg} />}
-            {isActive && !isDel && !isMedian && <rect x={kx} y={2} width={KEY_W} height={height - 4} rx={3} fill={theme.activeKeyBg} />}
+            {isDel && <rect x={kx} y={2} width={kw} height={height - 4} rx={3} fill={theme.deleteKeyBg} />}
+            {isActive && !isDel && !isMedian && <rect x={kx} y={2} width={kw} height={height - 4} rx={3} fill={theme.activeKeyBg} />}
             <text
-              x={kx + KEY_W / 2} y={height / 2 + 1}
+              x={kx + kw / 2} y={height / 2 + 1}
               textAnchor="middle" dominantBaseline="middle"
               fill={isDel ? theme.deleteKeyText : isMedian ? theme.medianKeyText : isActive ? theme.activeKeyText : theme.keyText}
-              fontSize={14} fontFamily="'JetBrains Mono', 'Fira Code', monospace"
+              fontSize={KEY_FONT_PX} fontFamily="'JetBrains Mono', 'Fira Code', monospace"
               fontWeight={(isActive || isDel || isMedian) ? 'bold' : 'normal'}
             >{k}</text>
           </g>
