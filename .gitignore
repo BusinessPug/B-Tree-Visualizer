@@ -34,3 +34,6 @@ deploy.sh
 # Misc tarballs
 *.tgz
 *.gz
+
+# My thoughts
+TODO.md
