@@ -182,6 +182,24 @@ body {
 .btv-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 .btv-input[type=number] { -moz-appearance: textfield; }
 
+/* Random-fill range pair. Sits inline with the other controls; the two
+   inputs share a label and are visually grouped by a thin separator. */
+.btv-range {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.btv-range-label {
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-right: 2px;
+}
+.btv-range-sep { color: var(--text-faint); }
+.btv-input-range { width: 7ch; padding: 9px 8px; text-align: center; }
+
 /* Buttons — flat, slightly translucent accent fills, accent border. */
 .btv-btn {
   --btn: var(--c-info);

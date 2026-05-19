@@ -6,8 +6,11 @@
 // The structure is value-type-agnostic: a `compare(a, b)` three-way
 // comparator is injected at construction time so the same code services
 // integers, floats, strings, characters, etc.
+//
+// Nodes carry parent pointers and a lazy snapshot cache; see nodeOps.js.
 
 import { defaultCompare } from './compare';
+import { markDirty, setParent, setParents, snapshotNode } from './nodeOps';
 
 class BTreeNode {
   constructor(isLeaf = true) {
@@ -15,6 +18,9 @@ class BTreeNode {
     this.children = [];
     this.isLeaf = isLeaf;
     this.id = Math.random().toString(36).slice(2);
+    this.parent = null;
+    this._dirty = true;
+    this._snap = null;
   }
 }
 
@@ -31,6 +37,10 @@ export class BTree {
     // bulk loaders so per-key staging does not balloon into O(n^2) deep
     // copies of the whole tree.
     this._silent = false;
+  }
+
+  snapshot() {
+    return snapshotNode(this.root);
   }
 
   // A stage is { snapshot, kind, focusIds, meta }. `kind` describes what
@@ -77,13 +87,7 @@ export class BTree {
   insert(key) {
     this._stages = [];
     const split = this._insertRec(this.root, key);
-    if (split) {
-      const newRoot = new BTreeNode(false);
-      newRoot.keys = [split.median];
-      newRoot.children = [this.root, split.right];
-      this.root = newRoot;
-      this._stage('root-split', [newRoot.id, newRoot.children[0].id, split.right.id]);
-    }
+    if (split) this._growRoot(split);
     return this._stages;
   }
 
@@ -94,15 +98,19 @@ export class BTree {
     this._silent = true;
     try {
       const split = this._insertRec(this.root, key);
-      if (split) {
-        const newRoot = new BTreeNode(false);
-        newRoot.keys = [split.median];
-        newRoot.children = [this.root, split.right];
-        this.root = newRoot;
-      }
+      if (split) this._growRoot(split);
     } finally {
       this._silent = prev;
     }
+  }
+
+  _growRoot(split) {
+    const newRoot = new BTreeNode(false);
+    newRoot.keys = [split.median];
+    newRoot.children = [this.root, split.right];
+    setParents(newRoot.children, newRoot);
+    this.root = newRoot;
+    this._stage('root-split', [newRoot.id, newRoot.children[0].id, split.right.id]);
   }
 
   _insertRec(node, key) {
@@ -111,6 +119,7 @@ export class BTree {
       let i = 0;
       while (i < node.keys.length && cmp(key, node.keys[i]) > 0) i++;
       node.keys.splice(i, 0, key);
+      markDirty(node);
       if (node.keys.length >= 2 * this.t - 1) {
         this._stage('overflow', [node.id], { medianIndex: this.t - 1, nodeId: node.id });
       } else {
@@ -123,6 +132,8 @@ export class BTree {
       if (split) {
         node.keys.splice(i, 0, split.median);
         node.children.splice(i + 1, 0, split.right);
+        setParent(split.right, node);
+        markDirty(node);
         // The parent now owns the new right sibling — the snapshot is
         // consistent, so emit the deferred 'split' stage for the child.
         this._stage(
@@ -154,7 +165,11 @@ export class BTree {
     const right = new BTreeNode(node.isLeaf);
     right.keys = node.keys.splice(t);
     node.keys.splice(t - 1, 1);
-    if (!node.isLeaf) right.children = node.children.splice(t);
+    if (!node.isLeaf) {
+      right.children = node.children.splice(t);
+      setParents(right.children, right);
+    }
+    markDirty(node);
     return { median, right };
   }
 
@@ -184,6 +199,7 @@ export class BTree {
     this._delete(this.root, key);
     if (this.root.keys.length === 0 && !this.root.isLeaf) {
       this.root = this.root.children[0];
+      this.root.parent = null;
       this._stage('root-collapse', [this.root.id]);
     }
     return this._stages;
@@ -201,6 +217,7 @@ export class BTree {
     if (i < node.keys.length && cmp(node.keys[i], key) === 0) {
       if (node.isLeaf) {
         node.keys.splice(i, 1);
+        markDirty(node);
         this._stage('leaf-delete', [node.id]);
         return;
       }
@@ -209,22 +226,29 @@ export class BTree {
       if (lc.keys.length >= t) {
         const pred = this._getPredecessor(lc);
         node.keys[i] = pred;
+        markDirty(node);
         this._stage('replace-pred', [node.id, lc.id]);
         this._delete(lc, pred);
         if (lc.keys.length < t - 1) this._fix(node, i);
       } else if (rc.keys.length >= t) {
         const succ = this._getSuccessor(rc);
         node.keys[i] = succ;
+        markDirty(node);
         this._stage('replace-succ', [node.id, rc.id]);
         this._delete(rc, succ);
         if (rc.keys.length < t - 1) this._fix(node, i + 1);
       } else {
         // Both adjacent children sit at the minimum: concatenate them,
         // skipping the separator (which is the key being deleted).
+        const movedChildren = rc.children;
         lc.keys = [...lc.keys, ...rc.keys];
-        if (!lc.isLeaf) lc.children = [...lc.children, ...rc.children];
+        if (!lc.isLeaf) {
+          lc.children = [...lc.children, ...rc.children];
+          setParents(movedChildren, lc);
+        }
         node.keys.splice(i, 1);
         node.children.splice(i + 1, 1);
+        markDirty(lc); // propagates up through node to root
         this._stage('merge-drop', [node.id, lc.id]);
       }
     } else {
@@ -271,7 +295,13 @@ export class BTree {
     const sibling = parent.children[i - 1];
     child.keys.unshift(parent.keys[i - 1]);
     parent.keys[i - 1] = sibling.keys.pop();
-    if (!sibling.isLeaf) child.children.unshift(sibling.children.pop());
+    if (!sibling.isLeaf) {
+      const moved = sibling.children.pop();
+      child.children.unshift(moved);
+      setParent(moved, child);
+    }
+    markDirty(child);
+    markDirty(sibling);
   }
 
   _borrowFromNext(parent, i) {
@@ -279,26 +309,27 @@ export class BTree {
     const sibling = parent.children[i + 1];
     child.keys.push(parent.keys[i]);
     parent.keys[i] = sibling.keys.shift();
-    if (!sibling.isLeaf) child.children.push(sibling.children.shift());
+    if (!sibling.isLeaf) {
+      const moved = sibling.children.shift();
+      child.children.push(moved);
+      setParent(moved, child);
+    }
+    markDirty(child);
+    markDirty(sibling);
   }
 
   _merge(parent, i) {
     const left = parent.children[i];
     const right = parent.children[i + 1];
+    const movedChildren = right.children;
     left.keys = [...left.keys, parent.keys[i], ...right.keys];
-    if (!left.isLeaf) left.children = [...left.children, ...right.children];
+    if (!left.isLeaf) {
+      left.children = [...left.children, ...right.children];
+      setParents(movedChildren, left);
+    }
     parent.keys.splice(i, 1);
     parent.children.splice(i + 1, 1);
-  }
-
-  snapshot() {
-    const ser = (n) => ({
-      id: n.id,
-      keys: [...n.keys],
-      isLeaf: n.isLeaf,
-      children: n.children.map(ser),
-    });
-    return ser(this.root);
+    markDirty(left); // propagates up through parent
   }
 }
 

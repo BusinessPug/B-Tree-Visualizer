@@ -30,10 +30,28 @@ export const DATATYPES = {
       return Number.isFinite(v) ? v : null;
     },
     compare: (a, b) => (a < b ? -1 : a > b ? 1 : 0),
-    // Full 32-bit unsigned-ish range. The cap was previously 20 000 which
-    // made collisions common as the tree grew; removing it makes large
-    // random fills both fast (few uniqueness retries) and visually varied.
-    random: () => Math.floor(Math.random() * 0x7fffffff),
+    // Random Fill samples uniformly from [start, end] (inclusive). The
+    // user picks the range in the controls; defaults are supplied below.
+    randomRange: {
+      kind: 'integer',
+      defaultStart: 0,
+      defaultEnd: 1000,
+      parse: (s) => {
+        if (typeof s !== 'string' || s.trim() === '') return null;
+        const v = Number.parseInt(s, 10);
+        return Number.isFinite(v) ? v : null;
+      },
+    },
+    random: (start = 0, end = 0x7fffffff - 1) => {
+      const lo = Math.min(start, end);
+      const hi = Math.max(start, end);
+      return Math.floor(Math.random() * (hi - lo + 1)) + lo;
+    },
+    randomKeyspaceForRange: (start, end) => {
+      const lo = Math.min(start, end);
+      const hi = Math.max(start, end);
+      return hi - lo + 1;
+    },
     display: (v) => String(v),
   },
   float: {
@@ -47,9 +65,23 @@ export const DATATYPES = {
       return Number.isFinite(v) ? v : null;
     },
     compare: (a, b) => (a < b ? -1 : a > b ? 1 : 0),
-    // Two-decimal floats in [0, 10 000). Large enough to avoid collisions
-    // when filling thousands of values, narrow enough to stay readable.
-    random: () => Math.round(Math.random() * 1_000_000) / 100,
+    // Two-decimal floats over a user-chosen range. Defaults match the
+    // integer range so the controls behave consistently.
+    randomRange: {
+      kind: 'float',
+      defaultStart: 0,
+      defaultEnd: 1000,
+      parse: (s) => {
+        if (typeof s !== 'string' || s.trim() === '') return null;
+        const v = Number.parseFloat(s);
+        return Number.isFinite(v) ? v : null;
+      },
+    },
+    random: (start = 0, end = 10_000) => {
+      const lo = Math.min(start, end);
+      const hi = Math.max(start, end);
+      return Math.round((Math.random() * (hi - lo) + lo) * 100) / 100;
+    },
     display: (v) => String(v),
   },
   string: {

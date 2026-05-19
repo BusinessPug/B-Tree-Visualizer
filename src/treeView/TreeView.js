@@ -3,7 +3,7 @@ import { AnimatePresence } from 'framer-motion';
 
 import { kindColor } from '../theme';
 import { MARGIN, TOP_MARGIN, LEFT_MARGIN } from './constants';
-import { computeLayout, flatten } from './layout';
+import { flatten } from './layout';
 import { STAGE_CAPTION } from './stageCaptions';
 import TreeEdge from './TreeEdge';
 import TreeNode from './TreeNode';
@@ -34,8 +34,7 @@ export default function TreeView({
         originX: MARGIN, originY: TOP_MARGIN,
       };
     }
-    const { node: rootNode } = computeLayout(treeSnapshot);
-    const { nodes: flat, edges: edgeList } = flatten(rootNode, orientation);
+    const { nodes: flat, edges: edgeList } = flatten(treeSnapshot, orientation);
     const map = Object.fromEntries(flat.map((n) => [n.id, n]));
     const maxX = flat.reduce((m, n) => Math.max(m, n.x + n.width), 0);
     const maxY = flat.reduce((m, n) => Math.max(m, n.y + n.height), 0);

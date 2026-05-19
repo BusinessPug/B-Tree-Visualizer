@@ -47,6 +47,13 @@ export default function MainComponent() {
   // The fill-count input is a separate string so the user can backspace
   // it down to empty without it snapping back to a default mid-edit.
   const [fillCountInput, setFillCountInput] = useState('20');
+  // Random-fill range (only used when the active datatype declares
+  // `randomRange`). The numeric state is `null` when the user clears the
+  // field; useRandomFill substitutes the datatype default on null.
+  const [fillStart, setFillStart] = useState(null);
+  const [fillEnd, setFillEnd] = useState(null);
+  const [fillStartInput, setFillStartInput] = useState('');
+  const [fillEndInput, setFillEndInput] = useState('');
 
   // UI state
   const [themeName, setThemeName] = useState('dark');
@@ -82,7 +89,7 @@ export default function MainComponent() {
   });
 
   const handleRandomFill = useRandomFill({
-    treeRef, datatype, fillCount,
+    treeRef, datatype, fillCount, fillStart, fillEnd,
     pushSnapshot, addLog, setStaging, setStatusMsg,
   });
 
@@ -283,6 +290,14 @@ export default function MainComponent() {
         setFillCountInput={setFillCountInput}
         fillCount={fillCount}
         setFillCount={setFillCount}
+        fillStartInput={fillStartInput}
+        setFillStartInput={setFillStartInput}
+        fillStart={fillStart}
+        setFillStart={setFillStart}
+        fillEndInput={fillEndInput}
+        setFillEndInput={setFillEndInput}
+        fillEnd={fillEnd}
+        setFillEnd={setFillEnd}
         busy={busy}
       />
 
